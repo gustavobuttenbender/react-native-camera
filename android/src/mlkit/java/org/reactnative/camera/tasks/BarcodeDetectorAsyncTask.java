@@ -311,8 +311,12 @@ public class BarcodeDetectorAsyncTask extends android.os.AsyncTask<Void, Void, V
       x = x - mPaddingLeft / 2;
     }
 
-    y = y + mPaddingTop;
-
+    if (frame.top < mHeight / 2) {
+      y = y + mPaddingTop / 2;
+    } else if (frame.top > mHeight / 2) {
+      y = y - mPaddingTop / 2;
+    }
+    
     origin.putDouble("x", x * mScaleX);
     origin.putDouble("y", y * mScaleY);
 
