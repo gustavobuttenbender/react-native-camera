@@ -21,15 +21,18 @@ import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
-import android.media.MediaRecorder;
 import android.media.MediaActionSound;
+import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Handler;
-import androidx.collection.SparseArrayCompat;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
+import androidx.collection.SparseArrayCompat;
+
 import com.facebook.react.bridge.ReadableMap;
+
+import org.reactnative.camera.utils.ObjectUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,12 +43,10 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.reactnative.camera.utils.ObjectUtils;
-
 
 @SuppressWarnings("deprecation")
 class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
-                                                MediaRecorder.OnErrorListener, Camera.PreviewCallback {
+        MediaRecorder.OnErrorListener, Camera.PreviewCallback {
 
     private static final int INVALID_CAMERA_ID = -1;
 
@@ -62,12 +63,12 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
     private static final SparseArrayCompat<String> WB_MODES = new SparseArrayCompat<>();
 
     static {
-      WB_MODES.put(Constants.WB_AUTO, Camera.Parameters.WHITE_BALANCE_AUTO);
-      WB_MODES.put(Constants.WB_CLOUDY, Camera.Parameters.WHITE_BALANCE_CLOUDY_DAYLIGHT);
-      WB_MODES.put(Constants.WB_SUNNY, Camera.Parameters.WHITE_BALANCE_DAYLIGHT);
-      WB_MODES.put(Constants.WB_SHADOW, Camera.Parameters.WHITE_BALANCE_SHADE);
-      WB_MODES.put(Constants.WB_FLUORESCENT, Camera.Parameters.WHITE_BALANCE_FLUORESCENT);
-      WB_MODES.put(Constants.WB_INCANDESCENT, Camera.Parameters.WHITE_BALANCE_INCANDESCENT);
+        WB_MODES.put(Constants.WB_AUTO, Camera.Parameters.WHITE_BALANCE_AUTO);
+        WB_MODES.put(Constants.WB_CLOUDY, Camera.Parameters.WHITE_BALANCE_CLOUDY_DAYLIGHT);
+        WB_MODES.put(Constants.WB_SUNNY, Camera.Parameters.WHITE_BALANCE_DAYLIGHT);
+        WB_MODES.put(Constants.WB_SHADOW, Camera.Parameters.WHITE_BALANCE_SHADE);
+        WB_MODES.put(Constants.WB_FLUORESCENT, Camera.Parameters.WHITE_BALANCE_FLUORESCENT);
+        WB_MODES.put(Constants.WB_INCANDESCENT, Camera.Parameters.WHITE_BALANCE_INCANDESCENT);
     }
 
     private static final int FOCUS_AREA_SIZE_DEFAULT = 300;
@@ -133,6 +134,8 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
     private boolean surfaceWasDestroyed;
 
     private SurfaceTexture mPreviewTexture;
+
+    private int[] mPreviewFpsRange;
 
     Camera1(Callback callback, PreviewImpl preview, Handler bgHandler) {
         super(callback, preview, bgHandler);
@@ -469,13 +472,13 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
             if (mAspectRatio == null) {
                 return;
             }
-          SortedSet<Size> sizes = mPictureSizes.sizes(mAspectRatio);
-          if(sizes != null && !sizes.isEmpty())
-          {
-            mPictureSize = sizes.last();
-          }
+            SortedSet<Size> sizes = mPictureSizes.sizes(mAspectRatio);
+            if(sizes != null && !sizes.isEmpty())
+            {
+                mPictureSize = sizes.last();
+            }
         } else {
-          mPictureSize = size;
+            mPictureSize = size;
         }
         synchronized(this){
             if (mCameraParameters != null && mCamera != null) {
@@ -949,6 +952,14 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
         return new Size(cameraSize.width, cameraSize.height);
     }
 
+    @Override
+    public void setPreviewFpsRange(int[] previewFpsRange) {
+        mCameraParameters.setPreviewFpsRange(
+                previewFpsRange[Camera.Parameters.PREVIEW_FPS_MIN_INDEX],
+                previewFpsRange[Camera.Parameters.PREVIEW_FPS_MAX_INDEX]
+        );
+    }
+
     /**
      * This rewrites {@link #mCameraId} and {@link #mCameraInfo}.
      */
@@ -1078,6 +1089,9 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
             mCameraParameters.setRotation(calcCameraRotation(mDeviceOrientation));
         }
 
+        int[] previewFpsRange = Fps.selectPreviewFpsRange(getSupportedPreviewFpsRange());
+        mPreviewFpsRange = previewFpsRange;
+
         setAutoFocusInternal(mAutoFocus);
         setFlashInternal(mFlash);
         setExposureInternal(mExposure);
@@ -1086,6 +1100,7 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
         setWhiteBalanceInternal(mWhiteBalance);
         setScanningInternal(mIsScanning);
         setPlaySoundInternal(mPlaySoundOnCapture);
+        setPreviewFpsRange(mPreviewFpsRange);
 
         try{
             mCamera.setParameters(mCameraParameters);
@@ -1170,7 +1185,7 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
                                         focusMode.equals(Camera.Parameters.FOCUS_MODE_MACRO) ||
                                         focusMode.equals(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE) ||
                                         focusMode.equals(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO))
-                                ) {
+                        ) {
                             parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
                             parameters.setFocusAreas(meteringAreas);
                             if (parameters.getMaxNumMeteringAreas() > 0) {
@@ -1265,10 +1280,10 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
                         parameters.setFocusAreas(null);
                         parameters.setMeteringAreas(null);
                         try{
-                          mCamera.setParameters(parameters);
+                            mCamera.setParameters(parameters);
                         }
                         catch(RuntimeException e ) {
-                          Log.e("CAMERA_1::", "setParameters failed", e);
+                            Log.e("CAMERA_1::", "setParameters failed", e);
                         }
                     }
 
@@ -1327,12 +1342,12 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
      * @return Number of degrees to rotate image in order for it to view correctly.
      */
     private int calcCameraRotation(int screenOrientationDegrees) {
-       if (mCameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
-           return (mCameraInfo.orientation + screenOrientationDegrees) % 360;
-       }
-       // back-facing
-       final int landscapeFlip = isLandscape(screenOrientationDegrees) ? 180 : 0;
-       return (mCameraInfo.orientation + screenOrientationDegrees + landscapeFlip) % 360;
+        if (mCameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
+            return (mCameraInfo.orientation + screenOrientationDegrees) % 360;
+        }
+        // back-facing
+        final int landscapeFlip = isLandscape(screenOrientationDegrees) ? 180 : 0;
+        return (mCameraInfo.orientation + screenOrientationDegrees + landscapeFlip) % 360;
     }
 
     /**
@@ -1595,7 +1610,7 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
 
     @Override
     public ArrayList<int[]> getSupportedPreviewFpsRange() {
-      return (ArrayList<int[]>) mCameraParameters.getSupportedPreviewFpsRange();
+        return (ArrayList<int[]>) mCameraParameters.getSupportedPreviewFpsRange();
     }
 
     private boolean isCompatibleWithDevice(int fps) {
@@ -1611,7 +1626,7 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
         Log.w("CAMERA_1::", "fps (framePerSecond) received an unsupported value and will be ignored.");
         return false;
     }
-    
+
     private void setCamcorderProfile(CamcorderProfile profile, boolean recordAudio, int fps) {
         int compatible_fps = isCompatibleWithDevice(fps) ? fps : profile.videoFrameRate;
         mMediaRecorder.setOutputFormat(profile.fileFormat);
@@ -1630,7 +1645,7 @@ class Camera1 extends CameraViewImpl implements MediaRecorder.OnInfoListener,
     @Override
     public void onInfo(MediaRecorder mr, int what, int extra) {
         if ( what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED ||
-              what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED) {
+                what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED) {
             stopRecording();
         }
     }

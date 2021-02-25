@@ -147,6 +147,8 @@ abstract class CameraViewImpl {
 
     abstract public Size getPreviewSize();
 
+    abstract public void setPreviewFpsRange(int[] previewFpsRange);
+
     interface Callback {
 
         void onCameraOpened();
